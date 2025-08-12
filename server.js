@@ -1,41 +1,58 @@
+// server.js
 import express from "express";
-import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
 
 dotenv.config();
+
 const app = express();
-const port = process.env.PORT || 3000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// Middleware
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "public"))); // serve your index.html
 
-// Serve static frontend files from "public" folder
-app.use(express.static("public"));
+// API endpoint for AI chat
+app.post("/api/chat", async (req, res) => {
+  const { message } = req.body;
 
-// API endpoint
-app.post("/chat", async (req, res) => {
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
   try {
-    const userMessage = req.body.message;
-
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: userMessage }]
+        messages: [{ role: "user", content: message }]
       })
     });
 
     const data = await response.json();
-    res.json(data);
+
+    if (data.error) {
+      return res.status(500).json({ error: data.error.message });
+    }
+
+    const aiReply = data.choices[0].message.content;
+    res.json({ reply: aiReply });
+
   } catch (error) {
-    console.error(error);
+    console.error("Error:", error);
     res.status(500).json({ error: "Something went wrong" });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Marvel.ai server running on port ${PORT}`);
 });
