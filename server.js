@@ -1,58 +1,46 @@
-// server.js
-import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
-import dotenv from "dotenv";
-import fetch from "node-fetch";
-
-dotenv.config();
+require('dotenv').config();
+const express = require('express');
+const axios = require('axios');
+const path = require('path');
 
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"))); // serve your index.html
+app.use(express.static(path.join(__dirname, 'public')));
 
-// API endpoint for AI chat
-app.post("/api/chat", async (req, res) => {
-  const { message } = req.body;
+// CORS handling (optional but included for safety)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  next();
+});
 
-  if (!message) {
-    return res.status(400).json({ error: "Message is required" });
+app.post('/chat', async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }]
+    }, {
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: message }]
-      })
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
     });
 
-    const data = await response.json();
-
-    if (data.error) {
-      return res.status(500).json({ error: data.error.message });
-    }
-
-    const aiReply = data.choices[0].message.content;
-    res.json({ reply: aiReply });
-
+    const reply = response.data.choices[0].message.content;
+    res.json({ reply });
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ error: "Something went wrong" });
+    console.error(error);
+    res.status(500).json({ error: 'Error calling OpenAI API' });
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Marvel.ai server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
